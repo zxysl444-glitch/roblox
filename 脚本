@@ -1,0 +1,158 @@
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+-- 创建主界面
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TeleportGUI"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+screenGui.ResetOnSpawn = false  -- 确保角色死亡后界面不消失‌:ml-citation{ref="1" data="citationList"}
+
+-- 主按钮容器
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 220, 0, 40)
+frame.Position = UDim2.new(0.5, -110, 0, 10)
+frame.BackgroundTransparency = 1
+frame.Parent = screenGui
+
+-- 坐标显示按钮 (中文)
+local coordBtn = Instance.new("TextButton")
+coordBtn.Size = UDim2.new(0.3, 0, 1, 0)
+coordBtn.Position = UDim2.new(0, 0, 0, 0)
+coordBtn.Text = "坐标显示"
+coordBtn.Font = Enum.Font.GothamBold
+coordBtn.TextSize = 14
+coordBtn.Parent = frame
+
+-- 保存位置按钮
+local saveBtn = Instance.new("TextButton")
+saveBtn.Size = UDim2.new(0.3, 0, 1, 0)
+saveBtn.Position = UDim2.new(0.35, 0, 0, 0)
+saveBtn.Text = "保存位置"
+saveBtn.Parent = frame
+
+-- 传送菜单按钮 (小型图标)
+local menuBtn = Instance.new("ImageButton")
+menuBtn.Size = UDim2.new(0.1, 0, 1, 0)
+menuBtn.Position = UDim2.new(0.7, 0, 0, 0)
+menuBtn.Image = "rbxassetid://7072718302"  -- 默认传送图标
+menuBtn.Parent = frame
+
+-- 坐标显示标签
+local coordLabel = Instance.new("TextLabel")
+coordLabel.Size = UDim2.new(0, 200, 0, 30)
+coordLabel.Position = UDim2.new(0.5, -100, 0, 50)
+coordLabel.BackgroundTransparency = 0.7
+coordLabel.Text = "X:0 Y:0 Z:0"
+coordLabel.Visible = false
+coordLabel.Parent = screenGui
+
+-- 保存位置数据
+local savedPositions = {}
+local positionStorage = {}
+
+-- 更新坐标显示
+local function updateCoords()
+    if rootPart then
+        local pos = rootPart.Position
+        coordLabel.Text = string.format("X:%.1f Y:%.1f Z:%.1f", pos.X, pos.Y, pos.Z)
+    end
+end
+
+-- 传送功能
+local function teleportTo(position)
+    if not character:FindFirstChild("HumanoidRootPart") then
+        character:WaitForChild("HumanoidRootPart", 5)
+    end
+    if character:FindFirstChild("HumanoidRootPart") then
+        character.HumanoidRootPart.CFrame = CFrame.new(position)
+    end
+end
+
+-- 创建传送菜单
+local function createTeleportMenu()
+    local menuFrame = Instance.new("Frame")
+    menuFrame.Size = UDim2.new(0, 300, 0, 300)
+    menuFrame.Position = UDim2.new(0.5, -150, 0.5, -150)
+    menuFrame.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    menuFrame.Visible = false
+    menuFrame.Parent = screenGui
+
+    local title = Instance.new("TextLabel")
+    title.Text = "传送位置"
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
+    title.Parent = menuFrame
+
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Size = UDim2.new(1, -20, 1, -40)
+    scroll.Position = UDim2.new(0, 10, 0, 35)
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scroll.Parent = menuFrame
+
+    -- 添加保存的位置
+    local function populateList()
+        scroll:ClearAllChildren()
+        local yOffset = 5
+        for name, pos in pairs(savedPositions) do
+            local entry = Instance.new("Frame")
+            entry.Size = UDim2.new(1, -10, 0, 30)
+            entry.Position = UDim2.new(0, 5, 0, yOffset)
+            entry.BackgroundTransparency = 0.8
+            entry.Parent = scroll
+            
+            local label = Instance.new("TextLabel")
+            label.Text = name..": "..string.format("(%.1f, %.1f, %.1f)", pos.X, pos.Y, pos.Z)
+            label.Size = UDim2.new(0.7, 0, 1, 0)
+            label.TextXAlignment = Enum.TextXAlignment.Left
+            label.Parent = entry
+            
+            local btn = Instance.new("TextButton")
+            btn.Text = "传送"
+            btn.Size = UDim2.new(0.3, 0, 1, 0)
+            btn.Position = UDim2.new(0.7, 0, 0, 0)
+            btn.Parent = entry
+            
+            btn.MouseButton1Click:Connect(function()
+                teleportTo(pos)
+                menuFrame.Visible = false
+            end)
+            
+            yOffset += 35
+            scroll.CanvasSize = UDim2.new(0, 0, 0, yOffset)
+        end
+    end
+
+    menuBtn.MouseButton1Click:Connect(function()
+        menuFrame.Visible = not menuFrame.Visible
+        if menuFrame.Visible then
+            populateList()
+        end
+    end)
+end
+
+-- 按钮功能绑定
+coordBtn.MouseButton1Click:Connect(function()
+    coordLabel.Visible = not coordLabel.Visible
+end)
+
+saveBtn.MouseButton1Click:Connect(function()
+    if rootPart then
+        local posName = "位置#"..tostring(#savedPositions+1)
+        savedPositions[posName] = rootPart.Position
+        table.insert(positionStorage, {name=posName, pos=rootPart.Position})
+    end
+end)
+
+-- 死亡处理
+character:WaitForChild("Humanoid").Died:Connect(function()
+    wait(5)  -- 等待重生时间‌:ml-citation{ref="4" data="citationList"}
+    character = player.Character
+    rootPart = character:WaitForChild("HumanoidRootPart")
+end)
+
+-- 初始化
+createTeleportMenu()
+game:GetService("RunService").RenderStepped:Connect(updateCoords)
